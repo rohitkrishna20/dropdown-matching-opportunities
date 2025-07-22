@@ -24,12 +24,12 @@ def extract_likely_headers(figma_json: dict) -> list[str]:
         return cleaned.replace(".", "").isdigit()
 
     def is_likely_header(txt: str) -> bool:
-    return (
-        txt
-        and not is_numeric(txt)
-        and len(txt) <= 30
-        and not any(c in txt for c in "@%/:()[]0123456789$")
-    )
+        return (
+            txt
+            and not is_numeric(txt)
+            and len(txt) <= 30
+            and not any(c in txt for c in "@%/:()[]0123456789$")
+        )
 
     def walk(node):
         if isinstance(node, dict):
