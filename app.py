@@ -19,25 +19,21 @@ rhs_data = json.loads(rhs_path.read_text(encoding="utf-8"))
 def extract_likely_headers(figma_json: dict) -> list[str]:
     out = []
 
-    def is_numeric(t: str) -> bool:
-        cleaned = t.replace(",", "").replace("%", "").replace("$", "").strip()
-        return cleaned.replace(".", "").isdigit()
-
-    def is_likely_header(txt: str) -> bool:
+    def is_valid_text(txt: str) -> bool:
         txt = txt.strip()
         return (
             txt
-            and not is_numeric(txt)
-            and len(txt) <= 30
-            and not any(c in txt for c in "@%/:()[]0123456789$")
             and not txt.isspace()
+            and not any(c in txt for c in "@%/:()[]0123456789$")
+            and len(txt) <= 30
+            and not txt.lower().startswith(("email", "call", "note"))  # filters common to-do items
         )
 
     def walk(node):
         if isinstance(node, dict):
             if node.get("type") == "TEXT":
                 txt = node.get("characters", "").strip()
-                if txt and is_likely_header(txt):
+                if is_valid_text(txt):
                     out.append(txt)
             for v in node.values():
                 walk(v)
@@ -46,7 +42,10 @@ def extract_likely_headers(figma_json: dict) -> list[str]:
                 walk(item)
 
     walk(figma_json)
+
     deduped = list(dict.fromkeys(out))
+    print("EXTRACTED HEADERS:", deduped[:10])  # Optional: add this to debug in terminal
+
     return deduped[:10]
 
 # ───────────── Step 2: Match Headers to RHS Fields ─────────────
