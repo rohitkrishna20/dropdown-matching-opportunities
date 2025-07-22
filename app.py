@@ -57,10 +57,10 @@ You are extracting column headers from a raw Figma-based UI. Focus only on **str
 
 Return exactly 10 headers as JSON:
 {{
-  "header1": "...",
-  "header2": "...",
+  "header1": ____
+  "header2": ____
   ...
-  "header10": "..."
+  "header10": ____
 }}
 
 Raw UI text:
