@@ -24,18 +24,20 @@ def extract_likely_headers(figma_json: dict) -> list[str]:
         return cleaned.replace(".", "").isdigit()
 
     def is_likely_header(txt: str) -> bool:
+        txt = txt.strip()
         return (
             txt
             and not is_numeric(txt)
             and len(txt) <= 30
             and not any(c in txt for c in "@%/:()[]0123456789$")
+            and not txt.isspace()
         )
 
     def walk(node):
         if isinstance(node, dict):
             if node.get("type") == "TEXT":
                 txt = node.get("characters", "").strip()
-                if is_likely_header(txt):
+                if txt and is_likely_header(txt):
                     out.append(txt)
             for v in node.values():
                 walk(v)
