@@ -1,14 +1,21 @@
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify
 from pathlib import Path
 import json, re
 
+from langchain_community.vectorstores import FAISS
+from langchain_core.documents import Document
+from langchain_community.embeddings import OllamaEmbeddings
+
 app = Flask(__name__)
 
-# ───────────── Load Figma UI JSON ─────────────
-lhs_path = Path("data/FigmaOpportunityTable.json")
-lhs_data = json.loads(lhs_path.read_text(encoding="utf-8"))
+# ───────────── Load JSON Files ─────────────
+lhs_path = Path("data/FigmaOpportunityTable.json")   # ← left-hand UI JSON
+rhs_path = Path("data/DataRightHS.json")             # ← your uploaded right-hand JSON
 
-# ───────────── Extract Likely Headers ─────────────
+lhs_data = json.loads(lhs_path.read_text(encoding="utf-8"))
+rhs_data = json.loads(rhs_path.read_text(encoding="utf-8"))
+
+# ───────────── Step 1: Extract Top 10 UI Headers ─────────────
 def extract_likely_headers(figma_json: dict) -> list[str]:
     out = []
 
@@ -32,23 +39,43 @@ def extract_likely_headers(figma_json: dict) -> list[str]:
                 txt = node.get("characters", "").strip()
                 if is_likely_header(txt):
                     out.append(txt)
-            for value in node.values():
-                walk(value)
+            for v in node.values():
+                walk(v)
         elif isinstance(node, list):
             for item in node:
                 walk(item)
 
     walk(figma_json)
+    deduped = list(dict.fromkeys(out))
+    return deduped[:10]
 
-    deduped = list(dict.fromkeys(out))  # Remove duplicates, keep order
-    return deduped[:10]  # Return top 10
+# ───────────── Step 2: Match Headers to RHS Fields ─────────────
+def match_headers_to_schema(headers: list[str], rhs_schema: dict) -> dict:
+    documents = []
+    for key, value in rhs_schema.items():
+        if not value:  # skip empty or null fields
+            continue
+        combined = f"{key}: {value}"
+        documents.append(Document(page_content=combined, metadata={"field": key}))
+
+    embeddings = OllamaEmbeddings(model="nomic-embed-text")
+    vectorstore = FAISS.from_documents(documents, embedding=embeddings)
+    retriever = vectorstore.as_retriever(search_type="similarity", k=3)
+
+    results = {}
+    for header in headers:
+        docs = retriever.invoke(header)
+        results[header] = [doc.metadata["field"] for doc in docs]
+
+    return results
 
 # ───────────── API Endpoint ─────────────
-@app.route("/api/top10", methods=["GET"])
-def get_top10_headers():
+@app.route("/api/match-fields", methods=["GET"])
+def match_fields():
     headers = extract_likely_headers(lhs_data)
-    return jsonify({"top_10_headers": headers})
+    matches = match_headers_to_schema(headers, rhs_data)
+    return jsonify(matches)
 
-# ───────────── Run Flask App ─────────────
+# ───────────── Run Flask Server ─────────────
 if __name__ == "__main__":
     app.run(debug=True)
